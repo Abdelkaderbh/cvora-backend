@@ -108,3 +108,21 @@ class AuthenticationApiTests(APITestCase):
 
 		self.assertEqual(response.status_code, status.HTTP_200_OK)
 		self.assertIn("token", response.data)
+
+	def test_unverified_user_gets_email_verification_message(self):
+		User.objects.create_user(
+			email="unverified@example.com",
+			password="strong-password-123",
+		)
+
+		response = self.client.post(
+			reverse("login"),
+			{
+				"email": "unverified@example.com",
+				"password": "strong-password-123",
+			},
+			format="json",
+		)
+
+		self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+		self.assertIn("not verified", str(response.data).lower())

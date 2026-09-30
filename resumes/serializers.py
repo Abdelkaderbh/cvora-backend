@@ -1,6 +1,11 @@
+import logging
+
 from rest_framework import serializers
 
 from .models import CV, User
+
+
+logger = logging.getLogger("resumes")
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
@@ -25,17 +30,15 @@ class LoginSerializer(serializers.Serializer):
 	password = serializers.CharField(write_only=True)
 
 	def validate(self, attrs):
-		from django.contrib.auth import authenticate
-
-		user = authenticate(
-			request=self.context.get("request"),
-			email=attrs["email"],
-			password=attrs["password"],
-		)
-		if user is None:
-			raise serializers.ValidationError("Invalid email or password.")
+		user = User.objects.filter(email=attrs["email"]).first()
+		if user is None or not user.check_password(attrs["password"]):
+			logger.warning("Login failed: invalid credentials")
+			raise serializers.ValidationError("Email or password is incorrect.")
 		if not user.is_active:
-			raise serializers.ValidationError("This account is inactive.")
+			logger.warning("Login blocked: email not verified user_id=%s", user.id)
+			raise serializers.ValidationError(
+				"Your email is not verified. Please verify your email first."
+			)
 
 		attrs["user"] = user
 		return attrs
