@@ -2,7 +2,10 @@ from rest_framework.routers import DefaultRouter
 from django.urls import path
 
 from .views import (
+	CVUploadAPIView,
 	CVViewSet,
+	CVAnalysisAPIView,
+	AnalysisListAPIView,
 	EmailVerificationAPIView,
 	LoginAPIView,
 	RegistrationAPIView,
@@ -16,4 +19,7 @@ urlpatterns = [
 	path("register/", RegistrationAPIView.as_view(), name="register"),
 	path("verify-email/", EmailVerificationAPIView.as_view(), name="verify-email"),
 	path("login/", LoginAPIView.as_view(), name="login"),
+	path("cvs/upload/", CVUploadAPIView.as_view(), name="cv-upload"),
+	path("cvs/analyze/", CVAnalysisAPIView.as_view(), name="cv-analyze"),
+	path("cvs/analyses/", AnalysisListAPIView.as_view(), name="analysis-list"),
 ] + router.urls

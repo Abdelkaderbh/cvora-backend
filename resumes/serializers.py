@@ -2,7 +2,7 @@ import logging
 
 from rest_framework import serializers
 
-from .models import CV, User
+from .models import Analysis, CV, User
 
 
 logger = logging.getLogger("resumes")
@@ -49,3 +49,29 @@ class CVSerializer(serializers.ModelSerializer):
 		model = CV
 		fields = ["id", "title", "file", "uploaded_at", "user"]
 		read_only_fields = ["id", "uploaded_at", "user"]
+
+
+class AnalysisRequestSerializer(serializers.Serializer):
+	cv_id = serializers.IntegerField(min_value=1, required=False)
+	title = serializers.CharField(max_length=255, required=False, write_only=True)
+	file = serializers.FileField(required=False, write_only=True)
+	job_title = serializers.CharField(max_length=255)
+	job_description = serializers.CharField()
+
+	def validate(self, attrs):
+		if not attrs.get("cv_id") and not attrs.get("file"):
+			raise serializers.ValidationError(
+				"Provide either cv_id or a CV file to analyze."
+			)
+		if attrs.get("cv_id") and attrs.get("file"):
+			raise serializers.ValidationError(
+				"Provide cv_id or a CV file, not both."
+			)
+		return attrs
+
+
+class AnalysisSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Analysis
+		fields = ["id", "cv", "job_title", "score", "result", "created_at"]
+		read_only_fields = fields
