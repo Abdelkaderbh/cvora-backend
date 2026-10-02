@@ -245,6 +245,15 @@ class AnalysisListAPIView(generics.ListAPIView):
 		return Analysis.objects.filter(user=self.request.user).order_by("-created_at")
 
 
+class CVDeleteAPIView(APIView):
+	permission_classes = [permissions.IsAuthenticated]
+
+	def delete(self, request, pk):
+		cv = get_object_or_404(CV, id=pk, user=request.user)
+		cv.delete()
+		return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class CVViewSet(viewsets.ModelViewSet):
 	serializer_class = CVSerializer
 	permission_classes = [permissions.IsAuthenticated]

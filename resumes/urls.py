@@ -6,6 +6,7 @@ from .views import (
 	CVViewSet,
 	CVAnalysisAPIView,
 	AnalysisListAPIView,
+	CVDeleteAPIView,
 	EmailVerificationAPIView,
 	LoginAPIView,
 	RegistrationAPIView,
@@ -22,4 +23,5 @@ urlpatterns = [
 	path("cvs/upload/", CVUploadAPIView.as_view(), name="cv-upload"),
 	path("cvs/analyze/", CVAnalysisAPIView.as_view(), name="cv-analyze"),
 	path("cvs/analyses/", AnalysisListAPIView.as_view(), name="analysis-list"),
+	path("cvs/<int:pk>/delete/", CVDeleteAPIView.as_view(), name="cv-delete"),
 ] + router.urls

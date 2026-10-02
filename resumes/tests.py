@@ -41,6 +41,26 @@ class CVApiTests(APITestCase):
 			CV.objects.filter(user=self.user, title="Backend resume").exists()
 		)
 
+	def test_user_can_delete_own_cv_and_its_analysis_results(self):
+		cv = CV.objects.create(
+			user=self.user,
+			title="Resume to delete",
+			file=SimpleUploadedFile("resume.pdf", b"resume"),
+		)
+		analysis = Analysis.objects.create(
+			user=self.user,
+			cv=cv,
+			job_title="Backend Engineer",
+			score=75,
+			result={"summary": "To be deleted"},
+		)
+
+		response = self.client.delete(reverse("cv-delete", args=[cv.id]))
+
+		self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+		self.assertFalse(CV.objects.filter(id=cv.id).exists())
+		self.assertFalse(Analysis.objects.filter(id=analysis.id).exists())
+
 	def test_user_can_upload_a_cv_with_login_token(self):
 		token = Token.objects.create(user=self.user)
 		self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
