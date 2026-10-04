@@ -2,10 +2,8 @@ import logging
 import os
 import re
 import secrets
-import smtplib
 from datetime import timedelta
 
-from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404
@@ -19,6 +17,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 
 from .models import Analysis, CV, User
 from .ai import analyze_with_gemini, analyze_with_ollama
+from .email import ResendEmailError, send_verification_email
 from .serializers import (
 	AnalysisRequestSerializer,
 	AnalysisSerializer,
@@ -55,17 +54,8 @@ class RegistrationAPIView(APIView):
 		user.save(update_fields=["verification_code", "verification_code_created_at"])
 
 		try:
-			send_mail(
-				subject="Verify your CVora account",
-				message=(
-					f"Your CVora verification code is {verification_code}. "
-					"It expires in 10 minutes."
-				),
-				from_email=None,
-				recipient_list=[user.email],
-				fail_silently=False,
-			)
-		except (OSError, smtplib.SMTPException) as exc:
+			send_verification_email(user.email, verification_code)
+		except ResendEmailError as exc:
 			logger.exception(
 				"Registration email failed: user_id=%s error=%s",
 				user.id,

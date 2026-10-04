@@ -1,5 +1,4 @@
 import json
-import socket
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -403,8 +402,8 @@ class AuthenticationApiTests(APITestCase):
 
 	def test_registration_returns_503_when_verification_email_times_out(self):
 		with patch(
-			"resumes.views.send_mail",
-			side_effect=socket.timeout("SMTP connection timed out"),
+			"resumes.email.urllib.request.urlopen",
+			side_effect=TimeoutError("Resend request timed out"),
 		):
 			response = self.client.post(
 				reverse("register"),
