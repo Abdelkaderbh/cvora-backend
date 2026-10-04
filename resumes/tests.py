@@ -1,4 +1,5 @@
 import json
+import socket
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -399,6 +400,27 @@ class AuthenticationApiTests(APITestCase):
 		self.assertIn("token", verification_response.data)
 		user.refresh_from_db()
 		self.assertTrue(user.is_active)
+
+	def test_registration_returns_503_when_verification_email_times_out(self):
+		with patch(
+			"resumes.views.send_mail",
+			side_effect=socket.timeout("SMTP connection timed out"),
+		):
+			response = self.client.post(
+				reverse("register"),
+				{
+					"email": "timeout@example.com",
+					"password": "strong-password-123",
+					"first_name": "Timeout",
+				},
+				format="json",
+			)
+
+		self.assertEqual(
+			response.status_code,
+			status.HTTP_503_SERVICE_UNAVAILABLE,
+		)
+		self.assertFalse(User.objects.filter(email="timeout@example.com").exists())
 
 	def test_user_can_login(self):
 		User.objects.create_user(

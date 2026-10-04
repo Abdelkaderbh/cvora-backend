@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import secrets
+import smtplib
 from datetime import timedelta
 
 from django.core.mail import send_mail
@@ -11,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, permissions, serializers, status, viewsets
 from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import APIException
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -30,6 +32,15 @@ from .serializers import (
 logger = logging.getLogger("resumes")
 
 
+class RegistrationEmailUnavailable(APIException):
+	status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+	default_detail = (
+		"Registration is temporarily unavailable because the verification email "
+		"could not be sent. Please try again later."
+	)
+	default_code = "registration_email_unavailable"
+
+
 class RegistrationAPIView(APIView):
 	permission_classes = [permissions.AllowAny]
 
@@ -43,16 +54,24 @@ class RegistrationAPIView(APIView):
 		user.verification_code_created_at = timezone.now()
 		user.save(update_fields=["verification_code", "verification_code_created_at"])
 
-		send_mail(
-			subject="Verify your CVora account",
-		message=(
-			f"Your CVora verification code is {verification_code}. "
-			"It expires in 10 minutes."
-		),
-		from_email=None,
-		recipient_list=[user.email],
-		fail_silently=False,
-		)
+		try:
+			send_mail(
+				subject="Verify your CVora account",
+				message=(
+					f"Your CVora verification code is {verification_code}. "
+					"It expires in 10 minutes."
+				),
+				from_email=None,
+				recipient_list=[user.email],
+				fail_silently=False,
+			)
+		except (OSError, smtplib.SMTPException) as exc:
+			logger.exception(
+				"Registration email failed: user_id=%s error=%s",
+				user.id,
+				exc,
+			)
+			raise RegistrationEmailUnavailable from exc
 		logger.info("User registered: user_id=%s", user.id)
 		return Response(
 			{
