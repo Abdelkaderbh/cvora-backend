@@ -6,13 +6,14 @@ from datetime import timedelta
 
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.models import Avg, Count
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, permissions, serializers, status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 
 from .models import Analysis, CV, User
 from .ai import analyze_with_gemini, analyze_with_ollama
@@ -179,7 +180,11 @@ def _keywords(text):
 
 class CVAnalysisAPIView(APIView):
 	permission_classes = [permissions.IsAuthenticated]
-	parser_classes = [MultiPartParser, FormParser]
+	parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+	def get(self, request):
+		cvs = CV.objects.filter(user=request.user).order_by("-uploaded_at")
+		return Response(CVSerializer(cvs, many=True).data)
 
 	def post(self, request):
 		request_serializer = AnalysisRequestSerializer(data=request.data)
@@ -243,6 +248,27 @@ class AnalysisListAPIView(generics.ListAPIView):
 
 	def get_queryset(self):
 		return Analysis.objects.filter(user=self.request.user).order_by("-created_at")
+
+
+class AnalysisStatisticsAPIView(APIView):
+	permission_classes = [permissions.AllowAny]
+
+	def get(self, request):
+		analyses = Analysis.objects.all()
+		if request.user.is_authenticated:
+			analyses = analyses.filter(user=request.user)
+
+		statistics = analyses.aggregate(
+			analyzed_cvs_count=Count("cv", distinct=True),
+			average_score=Avg("score"),
+		)
+		average_score = statistics["average_score"]
+		return Response(
+			{
+				"analyzed_cvs_count": statistics["analyzed_cvs_count"],
+				"average_score": round(average_score, 2) if average_score is not None else 0.0,
+			}
+		)
 
 
 class CVDeleteAPIView(APIView):

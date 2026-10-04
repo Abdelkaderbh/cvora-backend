@@ -131,6 +131,23 @@ class CVApiTests(APITestCase):
 		self.assertNotIn("looking", response.data["result"]["missing_keywords"])
 		self.assertTrue(Analysis.objects.filter(id=response.data["id"]).exists())
 
+	def test_analyze_form_lists_only_the_users_existing_cvs(self):
+		CV.objects.create(
+			user=self.user,
+			title="My resume",
+			file=SimpleUploadedFile("mine.txt", b"mine"),
+		)
+		CV.objects.create(
+			user=self.other_user,
+			title="Other resume",
+			file=SimpleUploadedFile("other.txt", b"other"),
+		)
+
+		response = self.client.get(reverse("cv-analyze"))
+
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertEqual([cv["title"] for cv in response.data], ["My resume"])
+
 	@patch("resumes.views.analyze_with_gemini")
 	def test_user_can_upload_and_analyze_cv_in_one_request(self, mock_analyze):
 		mock_analyze.return_value = {
@@ -210,6 +227,102 @@ class CVApiTests(APITestCase):
 		self.assertEqual(response.status_code, status.HTTP_200_OK)
 		self.assertEqual(len(response.data), 1)
 		self.assertEqual(response.data[0]["result"]["summary"], "Own result")
+
+	def test_user_can_get_analysis_statistics(self):
+		first_cv = CV.objects.create(
+			user=self.user,
+			title="First resume",
+			file=SimpleUploadedFile("first.txt", b"first"),
+		)
+		second_cv = CV.objects.create(
+			user=self.user,
+			title="Second resume",
+			file=SimpleUploadedFile("second.txt", b"second"),
+		)
+		Analysis.objects.create(
+			user=self.user,
+			cv=first_cv,
+			job_title="Backend Engineer",
+			score=80,
+			result={},
+		)
+		Analysis.objects.create(
+			user=self.user,
+			cv=first_cv,
+			job_title="Python Engineer",
+			score=60,
+			result={},
+		)
+		Analysis.objects.create(
+			user=self.user,
+			cv=second_cv,
+			job_title="Frontend Engineer",
+			score=90,
+			result={},
+		)
+		Analysis.objects.create(
+			user=self.other_user,
+			cv=CV.objects.create(
+				user=self.other_user,
+				title="Other resume",
+				file=SimpleUploadedFile("other.txt", b"other"),
+			),
+			job_title="Other Engineer",
+			score=10,
+			result={},
+		)
+
+		response = self.client.get(reverse("analysis-statistics"))
+
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertEqual(response.data, {
+			"analyzed_cvs_count": 2,
+			"average_score": 76.67,
+		})
+
+	def test_analysis_statistics_are_zero_when_user_has_no_analyses(self):
+		response = self.client.get(reverse("analysis-statistics"))
+
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertEqual(response.data, {
+			"analyzed_cvs_count": 0,
+			"average_score": 0.0,
+		})
+
+	def test_anonymous_user_can_get_global_analysis_statistics(self):
+		own_cv = CV.objects.create(
+			user=self.user,
+			title="My resume",
+			file=SimpleUploadedFile("mine.txt", b"mine"),
+		)
+		other_cv = CV.objects.create(
+			user=self.other_user,
+			title="Other resume",
+			file=SimpleUploadedFile("other.txt", b"other"),
+		)
+		Analysis.objects.create(
+			user=self.user,
+			cv=own_cv,
+			job_title="Backend Engineer",
+			score=80,
+			result={},
+		)
+		Analysis.objects.create(
+			user=self.other_user,
+			cv=other_cv,
+			job_title="Frontend Engineer",
+			score=60,
+			result={},
+		)
+		self.client.force_authenticate(user=None)
+
+		response = self.client.get(reverse("analysis-statistics"))
+
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertEqual(response.data, {
+			"analyzed_cvs_count": 2,
+			"average_score": 70.0,
+		})
 
 
 class GeminiAiTests(APITestCase):
